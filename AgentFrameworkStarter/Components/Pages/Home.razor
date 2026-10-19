@@ -1,0 +1,155 @@
+@page "/"
+@rendermode InteractiveServer
+@inject WorkflowUiState UiState
+@inject WorkflowRunner Runner
+@implements IDisposable
+
+<PageTitle>Loop Engineering Workflow</PageTitle>
+
+<div class="home">
+	<section class="card inputs-card">
+		<div class="card-head">
+			<h1>Workflow inputs</h1>
+			<span class="badge @(UiState.IsLive ? "badge-live" : "badge-demo")">@(UiState.IsLive ? "Live" : "Demo")</span>
+		</div>
+
+		<p class="hint">
+			@if (UiState.IsLive)
+			{
+				<text>Full model workflow: a Maker proposes one tiny code simplification, a separate Checker
+				reviews it, and a deterministic Validator (build/test oracle) owns the bounded loop.</text>
+			}
+			else
+			{
+				<text>Credential-free smoke test of the loop's deterministic machinery: skill loading,
+				the build/test oracle, memory round-trip, and proposal parsing.</text>
+			}
+		</p>
+
+		<div class="field">
+			<label for="targetPattern">Target pattern</label>
+			<textarea id="targetPattern" rows="2" @bind="TargetPattern" disabled="@Running"></textarea>
+		</div>
+
+		<div class="field">
+			<label for="targetFile">Target file</label>
+			<input id="targetFile" @bind="TargetFile" disabled="@Running" />
+		</div>
+
+		<div class="field-row">
+			<div class="field">
+				<label for="maxAttempts">Retry budget</label>
+				<input id="maxAttempts" type="number" min="1" max="5" @bind="MaxAttempts" disabled="@Running" />
+			</div>
+		</div>
+
+		@if (UiState.IsLive)
+		{
+			<div class="field">
+				<label for="model">Model</label>
+				<input id="model" @bind="Model" placeholder="provider/model-id" disabled="@Running" />
+			</div>
+
+			<div class="field">
+				<label for="apiKey">API key</label>
+				<input id="apiKey" type="password" @bind="ApiKey" placeholder="sk-..." disabled="@Running" />
+			</div>
+
+			<div class="field">
+				<label for="baseUrl">Base URL</label>
+				<input id="baseUrl" @bind="BaseUrl" placeholder="https://model.ai.cubic3.com" disabled="@Running" />
+			</div>
+		}
+		else
+		{
+			<p class="note">Demo mode runs without credentials; switch to Live to supply a model, API key, and base URL.</p>
+		}
+
+		<div class="actions">
+			<button class="btn run" @onclick="RunAsync" disabled="@Running">
+				@if (Running)
+				{
+					<span class="spinner" aria-hidden="true"></span><text>Running…</text>
+				}
+				else
+				{
+					<text>@(UiState.IsLive ? "▶ Run live workflow" : "▶ Run demo")</text>
+				}
+			</button>
+			<button class="btn ghost" @onclick="ClearOutput" disabled="@(Running || string.IsNullOrEmpty(Runner.Output))">Clear</button>
+		</div>
+	</section>
+
+	<section class="card terminal-card">
+		<div class="card-head">
+			<h2>Output</h2>
+			<span class="status @(Running ? "status-running" : string.Empty)">
+				@(Running ? "running…" : (string.IsNullOrEmpty(Runner.Output) ? "idle" : "complete"))
+			</span>
+		</div>
+		<pre class="terminal" id="terminal">@Runner.Output</pre>
+	</section>
+</div>
+
+@code {
+	private string TargetPattern = "a verbose or nested conditional that can be expressed more clearly without changing behavior";
+	private string TargetFile = string.Empty;
+	private int MaxAttempts = LoopEngineeringWorkflow.DefaultMaxAttempts;
+	private string? Model;
+	private string? ApiKey;
+	private string? BaseUrl;
+	private bool Running;
+
+	protected override void OnInitialized()
+	{
+		UiState.Changed += OnModeChanged;
+		Runner.OutputAppended += OnOutputAppended;
+		TargetFile = LoopEngineeringWorkflow.FindDefaultTargetFile()
+			?? Path.Combine(Environment.CurrentDirectory, "PlannerWorkerValidatorWorkflow.cs");
+		Model = Environment.GetEnvironmentVariable("ai-cubic3-apikey-1-model");
+		ApiKey = Environment.GetEnvironmentVariable("ai-cubic3-apikey-1");
+		BaseUrl = Environment.GetEnvironmentVariable("ai-cubic3-baseurl") ?? "https://model.ai.cubic3.com";
+	}
+
+	private void OnModeChanged() => InvokeAsync(StateHasChanged);
+
+	private void OnOutputAppended(string _) => InvokeAsync(StateHasChanged);
+
+	private async Task RunAsync()
+	{
+		Running = true;
+		try
+		{
+			if (UiState.IsLive)
+			{
+				await Runner.RunLiveAsync(new RunInputs(
+					TargetPattern.Trim(),
+					TargetFile.Trim(),
+					Math.Max(1, MaxAttempts),
+					Model?.Trim() ?? string.Empty,
+					ApiKey?.Trim() ?? string.Empty,
+					BaseUrl?.Trim() ?? string.Empty));
+			}
+			else
+			{
+				await Runner.RunDemoAsync();
+			}
+		}
+		catch (Exception ex)
+		{
+			await Runner.AppendErrorAsync(ex.Message);
+		}
+		finally
+		{
+			Running = false;
+		}
+	}
+
+	private void ClearOutput() => Runner.ClearOutput();
+
+	public void Dispose()
+	{
+		UiState.Changed -= OnModeChanged;
+		Runner.OutputAppended -= OnOutputAppended;
+	}
+}

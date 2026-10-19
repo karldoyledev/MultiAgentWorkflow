@@ -1,0 +1,46 @@
+@inherits LayoutComponentBase
+@inject WorkflowUiState UiState
+@implements IDisposable
+
+<div class="app-shell">
+	<header class="topbar">
+		<div class="brand">
+			<span class="brand-mark">◈</span>
+			<span class="brand-name">Agent Framework</span>
+			<span class="brand-slash">/</span>
+			<span class="brand-sub">Loop Engineering</span>
+		</div>
+
+		<div class="mode-switch" role="group" aria-label="Run mode">
+			<span class="mode-label @(UiState.IsLive ? string.Empty : "active")">Demo</span>
+			<button type="button"
+					class="switch @(UiState.IsLive ? "live" : "demo")"
+					role="switch"
+					aria-checked="@(UiState.IsLive ? "true" : "false")"
+					@onclick="ToggleMode"
+					title="Switch between the credential-free demo and the full model workflow">
+				<span class="knob"></span>
+			</button>
+			<span class="mode-label @(UiState.IsLive ? "active" : string.Empty)">Live</span>
+		</div>
+	</header>
+
+	<main class="content">
+		@Body
+	</main>
+
+	<footer class="footbar">
+		<span>Planner → Worker → Checker → Validator, bounded repair loop</span>
+		<span class="foot-hint">skills.addy.ie/tutorials/loop-engineering</span>
+	</footer>
+</div>
+
+@code {
+	protected override void OnInitialized() => UiState.Changed += OnModeChanged;
+
+	private void OnModeChanged() => InvokeAsync(StateHasChanged);
+
+	private void ToggleMode() => UiState.SetLive(!UiState.IsLive);
+
+	public void Dispose() => UiState.Changed -= OnModeChanged;
+}
