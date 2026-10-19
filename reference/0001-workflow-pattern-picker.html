@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Workflow Pattern Picker | Agent Framework Course</title>
+  <link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+  <header class="masthead">
+    <p class="eyebrow">Quick reference / 01</p>
+    <h1>Choose control flow before choosing agents.</h1>
+    <p class="dek">Start with the dependency between steps. Then select the least autonomous pattern that expresses it.</p>
+  </header>
+
+  <main class="reference-content">
+    <ol class="pattern-list">
+      <li><strong>Single agent</strong> - One model-backed role can complete the task, optionally using tools. Keep this as the baseline.</li>
+      <li><strong>Sequential orchestration</strong> - The next stage runs after the previous stage and consumes its output. Example: draft, then review.</li>
+      <li><strong>Concurrent orchestration</strong> - Independent specialists work from the same input; collect or aggregate their separate results.</li>
+      <li><strong>Handoff orchestration</strong> - The next owner depends on the conversation; one agent transfers control to a specialist.</li>
+      <li><strong>Group chat orchestration</strong> - A manager chooses speakers for bounded, iterative collaboration over shared conversation history.</li>
+      <li><strong>Magentic orchestration</strong> - A manager plans and replans a complex task, choosing participants dynamically. Keep rounds, stalls, and resets bounded.</li>
+      <li><strong>Explicit graph with conditional edges</strong> - Use typed workflow executors and conditions when the application owns routing, deterministic gates, or bounded loops.</li>
+    </ol>
+
+    <h2>A fast decision path</h2>
+    <p>Can one agent do it? Stay single-agent. If not: fixed dependency means sequential; independent work means concurrent; conversational ownership changes mean handoff; repeated shared discussion means group chat; open-ended decomposition means Magentic. If the application must enforce a condition or loop, model that control flow explicitly in a graph.</p>
+
+    <aside class="note">
+      <strong>For the course project:</strong> Planner -> Worker -> deterministic Validator, with a failure-only return to Worker and a small retry limit, points to an explicit workflow graph. A test/build validator is ordinary code; it does not need to be another agent.
+    </aside>
+
+    <p>Do not call a workflow "better" because it has more agents. Run the same representative tasks through the current single-agent baseline and the workflow, then compare task checks and output quality. The Agent Framework evaluation docs support local evaluators, repeated runs, and per-agent workflow breakdowns.</p>
+
+    <nav class="footer-links" aria-label="Course links">
+      <a href="../lessons/0001-choose-the-control-flow.html">Open Lesson 1</a>
+      <span aria-hidden="true"> | </span>
+      <a href="../MISSION.md">Course mission</a>
+    </nav>
+  </main>
+</body>
+</html>

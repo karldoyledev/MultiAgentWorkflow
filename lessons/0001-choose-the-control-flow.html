@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lesson 1: Choose the Control Flow</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script defer src="../assets/lesson-check.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <p class="eyebrow">Microsoft Agent Framework / Lesson 1</p>
+    <h1>Choose the control flow before the agents.</h1>
+    <p class="dek">A workflow earns its complexity by making dependencies, routing, or validation explicit.</p>
+    <p class="meta">About 4 minutes / One design decision / C# project</p>
+  </header>
+
+  <main class="lesson-content">
+    <p>You already have a working agent call. Keep it: that is the baseline your workflow must beat. Adding roles alone does not improve an answer; orchestration is useful when the task has a meaningful structure that one call does not express clearly.</p>
+
+    <h2 id="the-question">The decision question</h2>
+    <p>Ask: <strong>what must happen next, and who or what decides?</strong> That question selects a workflow shape more reliably than starting with "How many agents should I create?"</p>
+
+    <ul class="pattern-list">
+      <li><strong>Single agent:</strong> one role can complete the task, optionally using tools. Tools can extend its capability without adding another agent.</li>
+      <li><strong>Sequential orchestration:</strong> known stages run in a fixed order, with each stage consuming work from the previous one.</li>
+      <li><strong>Concurrent orchestration:</strong> independent agents work from the same input; compare or aggregate their results.</li>
+      <li><strong>Handoff orchestration:</strong> ownership changes with the conversation as one agent transfers control to a specialist.</li>
+      <li><strong>Group chat orchestration:</strong> agents take bounded, iterative turns over shared conversation history.</li>
+      <li><strong>Magentic orchestration:</strong> a manager plans, delegates, tracks progress, and replans when the path cannot be fixed up front.</li>
+      <li><strong>Explicit graph with conditional edges:</strong> the application enforces branches or retry rules using workflow executors and conditions.</li>
+    </ul>
+
+    <p>The .NET workflow API models executors connected by edges. A built-in sequential orchestration is appropriate for a straight line; a custom graph is the better fit when your own code needs to decide whether a result passes or loops back.</p>
+
+    <h2 id="your-first-system">Apply it to your first system</h2>
+    <p>Start with three stages, but only two need a model:</p>
+    <pre class="flow" aria-label="Planner to Worker to Validator, with failed validation returning to Worker up to a fixed limit">Request
+  |
+Planner (agent) -> Worker (agent) -> Validator (tests/build)
+                         ^                 |
+                         +---- fail -------+  (bounded retries)
+                                           |
+                                         pass -> Result</pre>
+
+    <p>The planner and worker are model-backed agents. The validator should first be deterministic code: run tests, inspect a structured result, or check an invariant. A failed check routes the diagnostics back to the worker; success exits. A retry cap prevents an unbounded loop. This is an <em>explicit graph</em>, not just a sequence, because the validator controls a branch.</p>
+
+    <aside class="note">
+      <strong>Keep the win measurable.</strong> Before adding agents, choose a small set of representative tasks and a clear pass condition. Compare the existing single-agent response with the workflow on those same tasks. Track correctness/reliability; also note extra model calls and elapsed time so quality gains are not considered in isolation. The framework supports local evaluators, repeated runs, and per-agent evaluation results.
+    </aside>
+
+    <section class="practice" id="check" aria-labelledby="check-title">
+      <p class="label">Recall check</p>
+      <h2 id="check-title">Choose the shape</h2>
+      <p>The stage order is fixed, but the Validator must end the run on a pass or route diagnostics back to Worker on a failure, with at most two Worker attempts. Which workflow shape best expresses that conditional retry?</p>
+      <form data-lesson-check data-answers="explicit graph|custom graph|workflowbuilder|workflow builder|graph"
+            data-correct-feedback="Right. The application owns a conditional edge and a retry limit, so make that control flow explicit."
+            data-incorrect-feedback="Try again: focus on who decides whether execution exits or returns to the Worker.">
+        <fieldset class="choice-list" aria-describedby="answer-feedback">
+          <legend>Choose one workflow shape</legend>
+          <label><input name="answer" type="radio" value="single agent" required> Single agent</label>
+          <label><input name="answer" type="radio" value="sequential orchestration"> Sequential orchestration</label>
+          <label><input name="answer" type="radio" value="concurrent orchestration"> Concurrent orchestration</label>
+          <label><input name="answer" type="radio" value="handoff orchestration"> Handoff orchestration</label>
+          <label><input name="answer" type="radio" value="group chat orchestration"> Group chat orchestration</label>
+          <label><input name="answer" type="radio" value="magentic orchestration"> Magentic orchestration</label>
+          <label><input name="answer" type="radio" value="explicit graph"> Explicit graph with conditional edges</label>
+        </fieldset>
+        <button type="submit">Check answer</button>
+        <p class="feedback" id="answer-feedback" data-feedback aria-live="polite"></p>
+      </form>
+    </section>
+
+    <h2 id="next">What comes next</h2>
+    <p>Next we can turn this design into typed C# executors and edges, starting with a non-AI validator so the control path is testable before we spend model calls on it. First, answer the check above and tell me one real task you want the workflow to handle; I'll use that to tune the next exercise.</p>
+
+    <section class="sources" aria-labelledby="sources-title">
+      <h2 id="sources-title">Primary sources</h2>
+      <ul>
+        <li><a href="https://learn.microsoft.com/en-us/agent-framework/workflows/orchestrations/">Microsoft: workflow orchestration patterns</a></li>
+        <li><a href="https://learn.microsoft.com/en-us/agent-framework/concepts/workflows/">Microsoft: .NET workflow concepts</a></li>
+        <li><a href="https://learn.microsoft.com/en-us/agent-framework/concepts/workflows/builder-and-execution">Microsoft: workflow builder and execution</a></li>
+        <li><a href="https://learn.microsoft.com/en-us/agent-framework/agents/evaluation">Microsoft: evaluating agents and workflows</a></li>
+        <li><a href="https://learn.microsoft.com/en-us/agent-framework/workflows/orchestrations/magentic">Microsoft: Magentic orchestration and limits</a></li>
+      </ul>
+    </section>
+
+    <nav class="footer-links" aria-label="Course materials">
+      <a href="../MISSION.md">Mission</a>
+      <span aria-hidden="true"> | </span>
+      <a href="../reference/0001-workflow-pattern-picker.html">Workflow pattern reference</a>
+      <span aria-hidden="true"> | </span>
+      <a href="../RESOURCES.md">Resource shelf</a>
+    </nav>
+    <p class="small">Ask me about anything unclear. We will build the system in small runnable steps and adjust the next lesson based on your answers.</p>
+  </main>
+</body>
+</html>
