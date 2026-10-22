@@ -1,5 +1,6 @@
 using AgentFrameworkStarter.Components;
 using AgentFrameworkStarter.Services;
+using Microsoft.AspNetCore.Hosting;
 
 /// <summary>
 /// Hosts the dark-themed Blazor Server UI that wraps the loop-engineering workflow inputs.
@@ -10,6 +11,15 @@ internal static class WebUi
 {
 	public static async Task StartAsync(string[] args)
 	{
+		// Serve framework static web assets (_framework/blazor.web.js) even when launched without a
+		// launchSettings.json. The interactive circuit cannot start without them, which made every
+		// button dead in Production. This is a localhost tool, so default to Development when no
+		// environment is configured — set it before CreateBuilder reads it.
+		if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") is null)
+		{
+			Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", Environments.Development);
+		}
+
 		var builder = WebApplication.CreateBuilder(args);
 
 		// Default to a stable local URL; override with ASPNETCORE_URLS if you prefer.

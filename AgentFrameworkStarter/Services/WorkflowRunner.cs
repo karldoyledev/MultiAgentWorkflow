@@ -58,6 +58,11 @@ public sealed class WorkflowRunner
 	/// <summary>Runs the full model workflow (Live mode) with the inputs from the UI form.</summary>
 	public async Task RunLiveAsync(RunInputs inputs)
 	{
+		if (string.IsNullOrWhiteSpace(inputs.Task))
+		{
+			throw new InvalidOperationException("Enter a task prompt for the Maker.");
+		}
+
 		if (string.IsNullOrWhiteSpace(inputs.Model))
 		{
 			throw new InvalidOperationException("Enter a model ID (or set ai-cubic3-apikey-1-model).");
@@ -77,11 +82,9 @@ public sealed class WorkflowRunner
 			new ApiKeyCredential(inputs.ApiKey),
 			new OpenAIClientOptions { Endpoint = endpoint });
 
-		var root = ProjectRoot.Find(inputs.TargetFile);
 		var request = new LoopRequest(
-			TargetPattern: inputs.TargetPattern,
-			TargetFilePath: inputs.TargetFile,
-			StateFilePath: Path.Combine(root, "loop-state.md"),
+			Task: inputs.Task,
+			StateFilePath: Path.Combine(Environment.CurrentDirectory, "loop-state.md"),
 			MaxAttempts: inputs.MaxAttempts);
 
 		await RunCapturedAsync(() => LoopEngineeringWorkflow.RunAsync(client, inputs.Model, request));
@@ -153,8 +156,7 @@ public sealed class WorkflowRunner
 
 /// <summary>Inputs captured from the UI form for a Live model run.</summary>
 public sealed record RunInputs(
-	string TargetPattern,
-	string TargetFile,
+	string Task,
 	int MaxAttempts,
 	string Model,
 	string ApiKey,

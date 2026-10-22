@@ -245,8 +245,17 @@ html, body {
 	color: var(--text-dim);
 }
 
+.field-optional {
+	color: var(--text-faint);
+	font-weight: 400;
+	text-transform: none;
+	letter-spacing: 0;
+	font-size: 0.7rem;
+}
+
 .field input,
-.field textarea {
+.field textarea,
+.field select {
 	width: 100%;
 	padding: 0.55rem 0.7rem;
 	background: var(--bg-elev);
@@ -258,17 +267,26 @@ html, body {
 	transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.field select {
+	font-family: var(--sans);
+	cursor: pointer;
+}
+
+.field select option { background: var(--panel-2); color: var(--text); }
+
 .field textarea { resize: vertical; min-height: 52px; }
 
 .field input:focus,
-.field textarea:focus {
+.field textarea:focus,
+.field select:focus {
 	outline: none;
 	border-color: var(--accent);
 	box-shadow: 0 0 0 3px rgba(76, 201, 240, 0.15);
 }
 
 .field input:disabled,
-.field textarea:disabled { opacity: 0.55; cursor: not-allowed; }
+.field textarea:disabled,
+.field select:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .field input::placeholder,
 .field textarea::placeholder { color: var(--text-faint); }

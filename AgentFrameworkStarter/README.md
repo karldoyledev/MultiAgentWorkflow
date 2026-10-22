@@ -28,7 +28,13 @@ dotnet run
 
 The UI has a **Demo / Live switch in the top right**:
 - **Demo** runs the credential-free loop smoke test (skill loading, the build/test oracle, memory round-trip, proposal parsing) — no API key required.
-- **Live** shows the full model setup (target pattern, target file, retry budget, model, API key, base URL) and runs the real Maker -> Checker -> Validator workflow, streaming the workflow's console output into the terminal panel.
+- **Live** runs the real Maker -> Checker -> Validator workflow, streaming the workflow's console output into the terminal panel.
+
+The loop's options are **selected on the page, not the command line**:
+- **Target pattern** — pick a preset simplification pattern (from the `code-simplification` skill) or choose "Custom…" and type your own.
+- **Target file** — pick from the `.cs` files discovered in the repo, or "Custom…" for a typed path.
+- **Retry budget** — choose 1–5 repair attempts.
+- **Model / Base URL** — editable inputs with suggested presets (OpenAI-compatible endpoints); **API key** — password field. All three default from the environment variables above, and the key is never persisted.
 
 Override the URL with the `ASPNETCORE_URLS` environment variable if `5080` is taken.
 
@@ -51,9 +57,8 @@ dotnet run -- demo
 **Loop-engineering workflow** (skills.addy.ie/tutorials/loop-engineering/) - a bounded Maker -> Checker -> Validator loop that proposes one tiny code simplification per run and hands you PR-style evidence. Only the five skills named on the tutorial page drive the agents: `code-simplification`, `incremental-implementation`, `test-driven-development` (Maker) and `code-review-and-quality` (Checker); the Reporter follows `git-workflow-and-versioning` to emit the evidence and update the memory state file.
 
 ```powershell
-# Uses the course project's workflow file by default; optional: <target-file> <pattern...>
+# Runs with the course defaults; options (pattern, file, budget, model, key, URL) are set in the web UI.
 dotnet run -- loop
-dotnet run -- loop AgentFrameworkStarter/Program.cs "a redundant else after a return"
 ```
 
 The loop's deterministic machinery (skill loading, the `dotnet build`/`dotnet test` oracle, the memory state file, and proposal parsing) is testable without credentials:

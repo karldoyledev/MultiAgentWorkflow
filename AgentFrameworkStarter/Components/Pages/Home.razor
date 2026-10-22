@@ -16,38 +16,43 @@
 		<p class="hint">
 			@if (UiState.IsLive)
 			{
-				<text>Full model workflow: a Maker proposes one tiny code simplification, a separate Checker
-				reviews it, and a deterministic Validator (build/test oracle) owns the bounded loop.</text>
+				<text>Full model workflow: the Maker receives your task prompt, produces the work, a separate
+				Checker judges it, and the deterministic Validator owns the bounded retry loop.</text>
 			}
 			else
 			{
 				<text>Credential-free smoke test of the loop's deterministic machinery: skill loading,
-				the build/test oracle, memory round-trip, and proposal parsing.</text>
+				memory round-trip, default request building, and Checker decision parsing.</text>
 			}
 		</p>
 
 		<div class="field">
-			<label for="targetPattern">Target pattern</label>
-			<textarea id="targetPattern" rows="2" @bind="TargetPattern" disabled="@Running"></textarea>
+			<label for="taskPrompt">Task prompt</label>
+			<textarea id="taskPrompt" rows="5" @bind="Task" disabled="@Running"
+					  placeholder="Describe the work the Maker should produce. Examples: fix one small verifiable issue with TDD, draft a release note for feature X, explain how the retry loop works."></textarea>
 		</div>
 
 		<div class="field">
-			<label for="targetFile">Target file</label>
-			<input id="targetFile" @bind="TargetFile" disabled="@Running" />
-		</div>
-
-		<div class="field-row">
-			<div class="field">
-				<label for="maxAttempts">Retry budget</label>
-				<input id="maxAttempts" type="number" min="1" max="5" @bind="MaxAttempts" disabled="@Running" />
-			</div>
+			<label for="maxAttempts">Retry budget</label>
+			<select id="maxAttempts" @bind="MaxAttempts" disabled="@Running">
+				@foreach (var budget in LoopOptions.RetryBudgets)
+				{
+					<option value="@budget">@budget attempt(s)</option>
+				}
+			</select>
 		</div>
 
 		@if (UiState.IsLive)
 		{
 			<div class="field">
 				<label for="model">Model</label>
-				<input id="model" @bind="Model" placeholder="provider/model-id" disabled="@Running" />
+				<input id="model" list="model-options" @bind="Model" placeholder="provider/model-id" disabled="@Running" />
+				<datalist id="model-options">
+					@foreach (var option in LoopOptions.Models)
+					{
+						<option value="@option.Value" />
+					}
+				</datalist>
 			</div>
 
 			<div class="field">
@@ -57,7 +62,13 @@
 
 			<div class="field">
 				<label for="baseUrl">Base URL</label>
-				<input id="baseUrl" @bind="BaseUrl" placeholder="https://model.ai.cubic3.com" disabled="@Running" />
+				<input id="baseUrl" list="base-url-options" @bind="BaseUrl" placeholder="https://model.ai.cubic3.com" disabled="@Running" />
+				<datalist id="base-url-options">
+					@foreach (var option in LoopOptions.BaseUrls)
+					{
+						<option value="@option.Value" />
+					}
+				</datalist>
 			</div>
 		}
 		else
@@ -92,8 +103,7 @@
 </div>
 
 @code {
-	private string TargetPattern = "a verbose or nested conditional that can be expressed more clearly without changing behavior";
-	private string TargetFile = string.Empty;
+	private string Task = "Improve this codebase by fixing one small, verifiable issue using test-driven development. Keep the change minimal and behavior-preserving.";
 	private int MaxAttempts = LoopEngineeringWorkflow.DefaultMaxAttempts;
 	private string? Model;
 	private string? ApiKey;
@@ -104,8 +114,6 @@
 	{
 		UiState.Changed += OnModeChanged;
 		Runner.OutputAppended += OnOutputAppended;
-		TargetFile = LoopEngineeringWorkflow.FindDefaultTargetFile()
-			?? Path.Combine(Environment.CurrentDirectory, "PlannerWorkerValidatorWorkflow.cs");
 		Model = Environment.GetEnvironmentVariable("ai-cubic3-apikey-1-model");
 		ApiKey = Environment.GetEnvironmentVariable("ai-cubic3-apikey-1");
 		BaseUrl = Environment.GetEnvironmentVariable("ai-cubic3-baseurl") ?? "https://model.ai.cubic3.com";
@@ -123,8 +131,7 @@
 			if (UiState.IsLive)
 			{
 				await Runner.RunLiveAsync(new RunInputs(
-					TargetPattern.Trim(),
-					TargetFile.Trim(),
+					Task.Trim(),
 					Math.Max(1, MaxAttempts),
 					Model?.Trim() ?? string.Empty,
 					ApiKey?.Trim() ?? string.Empty,
