@@ -7,13 +7,15 @@ using OpenAI;
 using OpenAI.Chat;
 
 /// <summary>
-/// The software-factory loop as a proof of concept: the SAME bounded Maker -> Validator -> Reporter
-/// graph as LoopEngineeringWorkflow, but the Maker actually ACTS (via tools) and the Validator runs a
-/// REAL oracle (`dotnet build`) instead of an empty-output check.
+/// The software-factory loop: the bounded Maker -> Checker -> Validator -> Reporter graph from the
+/// loop-engineering tutorial. The Maker actually ACTS (via tools), the separate Checker reviews the
+/// diff with the code-review-and-quality skill, and the Validator runs a REAL oracle (`dotnet build`)
+/// as the hard-to-fake gate.
 ///
 /// This is the skills.addy.ie /tutorials/loop-engineering pattern made concrete on the Microsoft Agent
 /// Framework: the harness primitives (file editing, command running, git) that Claude Code / Codex
-/// supply natively are exposed explicitly as tools, and the loop's stop condition is machine-checked.
+/// supply natively are exposed explicitly as tools, and the skills supply the Maker's and Checker's
+/// instructions from `.agents/skills`.
 ///
 /// The loop never commits or opens a PR; it hands back evidence (diff + build result) for the human
 /// outer loop, exactly as the tutorial's steps 6-7 describe.
@@ -29,28 +31,72 @@ internal static class FactoryLoopWorkflow
 		+ "an obvious defect, or a naming/whitespace problem. Keep the change minimal and behavior-preserving, "
 		+ "and prove it by running 'dotnet build --no-restore' successfully.";
 
-	/// <summary>The Maker's standing instructions: act through the tools, verify with the build, report concisely.</summary>
-	internal const string MakerInstructions =
-		"""
-		You are the MAKER inside a bounded software-factory loop for this C# repository. Each run fixes exactly
-		ONE small, verifiable issue. Keep the change under ~10 lines, behavior-preserving, and never touch obj/ or bin/.
+	/// <summary>
+	/// The Maker's standing instructions: the tutorial's maker skills plus the harness-connector rules
+	/// (act through the tools, verify with the build, report concisely). The skills are what the /loops
+	/// guide says belongs in the loop: project knowledge the agent would otherwise guess.
+	/// </summary>
+	internal static string BuildMakerInstructions()
+	{
+		var b = new StringBuilder();
+		b.AppendLine("You are the MAKER inside a bounded software-factory loop for this C# repository. Each run fixes exactly");
+		b.AppendLine("ONE small, verifiable issue. Keep the change under ~10 lines, behavior-preserving, and never touch obj/ or bin/.");
+		b.AppendLine();
+		b.AppendLine("Act only from the skills below and ignore any other skill referenced inside them:");
+		b.AppendLine();
+		b.AppendLine("=== Skill: incremental-implementation ===");
+		b.AppendLine(SkillGuide.Load("incremental-implementation", 4500));
+		b.AppendLine();
+		b.AppendLine("=== Skill: test-driven-development ===");
+		b.AppendLine(SkillGuide.Load("test-driven-development", 5000));
+		b.AppendLine();
+		b.AppendLine("Use the provided tools:");
+		b.AppendLine("- read_file(path): read source files (paths relative to the repository root).");
+		b.AppendLine("- write_file(path, content): apply your change.");
+		b.AppendLine("- run_command(command, args): runs 'dotnet' or 'git' in the repository root. Use 'dotnet build --no-restore'");
+		b.AppendLine("  to verify your change still compiles; fix anything you broke before finishing.");
+		b.AppendLine("- git_diff(path): show your working-tree diff.");
+		b.AppendLine();
+		b.AppendLine("Procedure:");
+		b.AppendLine("1) read_file / git_diff to pick one small issue and inspect the file.");
+		b.AppendLine("2) write_file to apply the minimal fix.");
+		b.AppendLine("3) run_command 'dotnet build --no-restore'; only finish when it exits 0.");
+		b.AppendLine("4) git_diff the file to confirm the change is small and focused.");
+		b.AppendLine("5) Finish with exactly two final lines, nothing after:");
+		b.AppendLine("FILE: <relative path of the changed file>");
+		b.AppendLine("SUMMARY: <one accurate sentence>");
+		return b.ToString();
+	}
 
-		Use the provided tools:
-		- read_file(path): read source files (paths relative to the repository root).
-		- write_file(path, content): apply your change.
-		- run_command(command, args): runs 'dotnet' or 'git' in the repository root. Use 'dotnet build --no-restore'
-		  to verify your change still compiles; fix anything you broke before finishing.
-		- git_diff(path): show your working-tree diff.
+	/// <summary>The Checker's standing instructions: the tutorial's checker skill plus the scope rubric.</summary>
+	internal static string BuildCheckerInstructions()
+	{
+		var b = new StringBuilder();
+		b.AppendLine("You are the CHECKER in a bounded software-factory loop. You are a separate model from the maker:");
+		b.AppendLine("grade the maker's work, never your own. Judge only the task scope and this rubric:");
+		b.AppendLine("- It addresses the requested task and stays within its scope.");
+		b.AppendLine("- It is small (a few lines) and behavior-preserving; reject sweeping rewrites.");
+		b.AppendLine("- It is complete, clear, and specific; no placeholders or process commentary.");
+		b.AppendLine("- It is verifiable: a check (such as a build or test) could prove it.");
+		b.AppendLine("Act only from the skill below:");
+		b.AppendLine();
+		b.AppendLine("=== Skill: code-review-and-quality ===");
+		b.AppendLine(SkillGuide.Load("code-review-and-quality", 9000));
+		b.AppendLine();
+		b.AppendLine("Return only a JSON object with this exact shape:");
+		b.AppendLine("{\"approved\":true,\"feedback\":[]} when all checks pass, or");
+		b.AppendLine("{\"approved\":false,\"feedback\":[\"specific, actionable problem\"]} when rejecting.");
+		b.AppendLine("Feedback must identify every problem the Maker should fix.");
+		return b.ToString();
+	}
 
-		Procedure:
-		1) read_file / git_diff to pick one small issue and inspect the file.
-		2) write_file to apply the minimal fix.
-		3) run_command 'dotnet build --no-restore'; only finish when it exits 0.
-		4) git_diff the file to confirm the change is small and focused.
-		5) Finish with exactly two final lines, nothing after:
-		FILE: <relative path of the changed file>
-		SUMMARY: <one accurate sentence>
-		""";
+	/// <summary>Builds the separate Checker agent with the code-review-and-quality skill loaded.</summary>
+	internal static AIAgent CreateCheckerAgent(OpenAIClient client, string model) =>
+		client.GetChatClient(model).AsAIAgent(new ChatClientAgentOptions
+		{
+			Name = "FactoryChecker",
+			ChatOptions = new Microsoft.Extensions.AI.ChatOptions { Instructions = BuildCheckerInstructions() }
+		});
 
 	private const string DemoTargetFileName = "FactoryDemo.Target.cs";
 
@@ -83,6 +129,7 @@ internal static class FactoryLoopWorkflow
 		await RunGraphAsync(
 			new FactorySelectorExecutor(),
 			new ToolCallingMakerExecutor(client.GetChatClient(model), projectRoot),
+			new FactoryCheckerExecutor(CreateCheckerAgent(client, model)),
 			new FactoryBuildOracleValidator(),
 			new FactoryReporterExecutor(request.StateFilePath),
 			request);
@@ -110,6 +157,7 @@ internal static class FactoryLoopWorkflow
 			await RunGraphAsync(
 				new FactorySelectorExecutor(),
 				new ScriptedCleanerMakerExecutor(),
+				new ScriptedApproverChecker(),
 				new FactoryBuildOracleValidator(),
 				new FactoryReporterExecutor(stateFile),
 				request);
@@ -133,15 +181,17 @@ internal static class FactoryLoopWorkflow
 private static async Task RunGraphAsync(
 		FactorySelectorExecutor selector,
 		Executor<FactoryStep, FactoryOutput> maker,
+		Executor<FactoryOutput, FactoryReview> checker,
 		FactoryBuildOracleValidator validator,
 		FactoryReporterExecutor reporter,
 		FactoryRequest request)
 	{
 		WorkflowBuilder builder = new(selector);
 		builder.AddEdge(selector, maker);
-		builder.AddEdge(maker, validator);
+		builder.AddEdge(maker, checker);
+		builder.AddEdge(checker, validator);
 
-		// The oracle owns the branch: a failed or empty attempt re-enters the Maker up to the cap.
+		// The checker+oracle gate owns the branch: a rejected or unbuildable attempt re-enters the Maker up to the cap.
 		builder.AddEdge<FactoryStep>(validator, maker, step => step?.NextAttempt is not null);
 		builder.AddEdge<FactoryStep>(validator, reporter, step => step?.NextAttempt is null);
 		builder.WithOutputFrom(reporter);
@@ -271,6 +321,9 @@ internal sealed record FactoryChange(string FilePath, string Summary, string? Be
 /// <summary>The Maker's result: either a real change or "nothing to change" for this attempt.</summary>
 internal sealed record FactoryOutput(FactoryChange? Change, FactoryBrief Brief);
 
+/// <summary>The Checker's independent verdict on the Maker's diff, and the feedback if it rejects.</summary>
+internal sealed record FactoryReview(FactoryOutput Output, bool Approved, IReadOnlyList<string> Feedback);
+
 /// <summary>
 /// The one message that travels around the loop in both directions: the next attempt, or the final
 /// report that ends the run (same shape as LoopStep, file-centric).
@@ -341,6 +394,91 @@ internal sealed class ScriptedCleanerMakerExecutor() : Executor<FactoryStep, Fac
 /// given read_file / write_file / run_command / git_diff and loops over function calls itself, applying
 /// real edits, verifying with 'dotnet build', then reporting FILE:/SUMMARY: lines the loop can parse.
 /// </summary>
+
+/// <summary>
+/// The separate Checker (Live mode). A second, independent model reviews the Maker's diff against the
+/// task and the code-review-and-quality rubric, returning a JSON approve/reject decision. It can only
+/// see evidence, never the Maker's own reasoning, so its verdict is the tutorial's trust anchor.
+/// </summary>
+internal sealed class FactoryCheckerExecutor(AIAgent checker) : Executor<FactoryOutput, FactoryReview>("Checker")
+{
+	public override async ValueTask<FactoryReview> HandleAsync(
+		FactoryOutput output,
+		IWorkflowContext context,
+		CancellationToken cancellationToken = default)
+	{
+		var brief = output.Brief;
+		var change = output.Change;
+		if (change is null)
+		{
+			return new FactoryReview(output, false, ["The Maker produced no change this attempt."]);
+		}
+
+		var prompt =
+			$$"""
+			Task:
+			{{brief.Task}}
+
+			Changed file: {{change.FilePath}}
+			Maker's summary: {{change.Summary}}
+
+			Diff:
+			<diff>
+			{{FactoryLoopWorkflow.Truncate(change.Evidence, 8000)}}
+			</diff>
+
+			Judge the work against your rubric and only the task scope.
+			Return only a JSON object with this exact shape:
+			{"approved":true,"feedback":[]} when all checks pass, or
+			{"approved":false,"feedback":["specific, actionable problem"]} when rejecting.
+			Feedback must identify every problem the Maker should fix.
+			""";
+
+		var response = (await checker.RunAsync(prompt, cancellationToken: cancellationToken)).Text
+			?? throw new InvalidOperationException("The Checker returned no review.");
+		var decision = PlannerWorkerValidatorWorkflow.ParseReview(response);
+
+		Console.WriteLine(decision.Approved
+			? $"[Checker] attempt {brief.Attempt}: approved."
+			: $"[Checker] attempt {brief.Attempt}: rejected.");
+		foreach (var item in decision.Feedback)
+		{
+			Console.WriteLine($"  - {item}");
+		}
+
+		return new FactoryReview(output, decision.Approved, decision.Feedback);
+	}
+}
+
+/// <summary>
+/// The credential-free demo Checker: approves any small change the scripted Maker produced, so the
+/// demo exercises the exact Maker -> Checker -> Oracle -> Reporter graph without a model call.
+/// </summary>
+internal sealed class ScriptedApproverChecker() : Executor<FactoryOutput, FactoryReview>("CleanerChecker")
+{
+	public override ValueTask<FactoryReview> HandleAsync(
+		FactoryOutput output,
+		IWorkflowContext context,
+		CancellationToken cancellationToken = default)
+	{
+		var change = output.Change;
+		if (change is null)
+		{
+			return ValueTask.FromResult(new FactoryReview(output, false, ["The Maker produced no change this attempt."]));
+		}
+
+		var diffLines = change.Evidence.Split('\n').Length;
+		if (diffLines > 40)
+		{
+			Console.WriteLine($"[Checker] attempt {output.Brief.Attempt}: rejected - diff is {diffLines} lines, larger than a few lines.");
+			return ValueTask.FromResult(new FactoryReview(output, false, ["The change is larger than a few lines; keep it minimal."]));
+		}
+
+		Console.WriteLine($"[Checker] attempt {output.Brief.Attempt}: approved (scripted).");
+		return ValueTask.FromResult(new FactoryReview(output, true, []));
+	}
+}
+
 internal sealed class ToolCallingMakerExecutor(ChatClient chat, string projectRoot) : Executor<FactoryStep, FactoryOutput>("ToolMaker")
 {
 	private const int MaxToolRounds = 12;
@@ -361,7 +499,7 @@ internal sealed class ToolCallingMakerExecutor(ChatClient chat, string projectRo
 
 		var history = new List<ChatMessage>
 		{
-			new SystemChatMessage(FactoryLoopWorkflow.MakerInstructions),
+			new SystemChatMessage(FactoryLoopWorkflow.BuildMakerInstructions()),
 			new UserChatMessage(FactoryLoopWorkflow.BuildMakerPrompt(brief)),
 		};
 
@@ -516,28 +654,36 @@ internal sealed class ToolCallingMakerExecutor(ChatClient chat, string projectRo
 
 
 /// <summary>
-/// The deterministic gate of the factory loop: it runs the REAL `dotnet build` oracle on the change
-/// the Maker materialized. Exit code 0 is the only pass signal; a build failure or an empty change
+/// The deterministic gate of the factory loop. It combines BOTH gates the tutorial demands: the
+/// separate Checker's quality verdict (code-review-and-quality) and the machine oracle (`dotnet
+/// build`). A change only passes when the Checker approved AND the build exits 0; anything else
 /// re-enters the Maker up to the retry cap, then exits with the unresolved report.
 /// </summary>
-internal sealed class FactoryBuildOracleValidator() : Executor<FactoryOutput, FactoryStep>("BuildOracle")
+internal sealed class FactoryBuildOracleValidator() : Executor<FactoryReview, FactoryStep>("BuildOracle")
 {
 	public override async ValueTask<FactoryStep> HandleAsync(
-		FactoryOutput output,
+		FactoryReview review,
 		IWorkflowContext context,
 		CancellationToken cancellationToken = default)
 	{
-		var brief = output.Brief;
+		var brief = review.Output.Brief;
+		var change = review.Output.Change;
 		var failures = new List<string>();
 
-		if (output.Change is null)
+		if (change is null)
 		{
 			failures.Add("The Maker produced no change this attempt.");
 		}
+		else if (!review.Approved)
+		{
+			// The separate Checker owns the quality gate until it says the diff is sound.
+			failures.AddRange(review.Feedback);
+		}
 
 		CommandResult? build = null;
-		if (output.Change is not null)
+		if (failures.Count == 0)
 		{
+			// Only spend a build once the Checker approved; the build is the hard-to-fake oracle.
 			build = await FactoryDevTools.RunDotNetBuildOracleAsync();
 			if (build.ExitCode != 0)
 			{
@@ -548,8 +694,8 @@ internal sealed class FactoryBuildOracleValidator() : Executor<FactoryOutput, Fa
 
 		if (failures.Count == 0)
 		{
-			Console.WriteLine($"[Oracle] attempt {brief.Attempt}: dotnet build PASSED (exit 0).");
-			return FactoryStep.Done(BuildReport(output.Change!, brief.Attempt, build!, passed: true));
+			Console.WriteLine($"[Oracle] attempt {brief.Attempt}: checker approved and dotnet build PASSED (exit 0).");
+			return FactoryStep.Done(BuildReport(change!, brief.Attempt, build!, passed: true));
 		}
 
 		Console.WriteLine($"[Oracle] attempt {brief.Attempt}: {failures.Count} problem(s) found.");
@@ -561,7 +707,7 @@ internal sealed class FactoryBuildOracleValidator() : Executor<FactoryOutput, Fa
 		if (brief.Attempt >= brief.MaxAttempts)
 		{
 			Console.WriteLine("[Oracle] retry budget spent; exiting with the unresolved report.");
-			return FactoryStep.Done(BuildReport(output.Change, brief.Attempt, build, passed: false, failures));
+			return FactoryStep.Done(BuildReport(change, brief.Attempt, build, passed: false, failures));
 		}
 
 		return FactoryStep.ForAttempt(brief.ForRetry(failures));
@@ -574,7 +720,7 @@ internal sealed class FactoryBuildOracleValidator() : Executor<FactoryOutput, Fa
 			: $"File: {change.FilePath}\nSummary: {change.Summary}\n\n--- diff ---\n{FactoryLoopWorkflow.Truncate(change.Evidence, 4000)}";
 
 		var validation = passed
-			? $"dotnet build passed (exit 0) after {attempt} maker attempt(s)."
+			? $"Checker approved and dotnet build passed (exit 0) after {attempt} maker attempt(s)."
 			: $"Did not pass within {attempt} attempt(s). Failures:\n{string.Join(Environment.NewLine, failures ?? [])}";
 
 		var log = build is null
