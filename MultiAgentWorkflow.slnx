@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/Tests/" />
+  <Folder Name="/Tests/FactoryLoopHarness/">
+    <Project Path="Tests/FactoryLoopHarness/FactoryLoopHarnessTests.csproj" />
+  </Folder>
+  <Project Path="AgentFrameworkStarter/AgentFrameworkStarter.csproj" />
+</Solution>

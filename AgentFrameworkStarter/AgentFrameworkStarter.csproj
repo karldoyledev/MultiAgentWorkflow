@@ -12,4 +12,11 @@
     <PackageReference Include="Microsoft.Agents.AI.Workflows" Version="1.24.0" />
   </ItemGroup>
 
+  <!-- The repeatable harness lives in Tests/FactoryLoopHarness and must pass with every change
+       to this project (see .github/workflows/ci.yml and CONTRIBUTING.md). It needs the loop's
+       internal executors and records, so grant it friend-assembly access. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="FactoryLoopHarnessTests" />
+  </ItemGroup>
+
 </Project>

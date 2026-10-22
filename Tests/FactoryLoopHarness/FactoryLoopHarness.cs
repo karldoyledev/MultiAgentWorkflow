@@ -6,9 +6,11 @@ using Microsoft.Agents.AI.Workflows;
 /// Repeatable, credential-free harness that proves the software-factory loop's deterministic
 /// machinery against an isolated throwaway project (a single-file console app in %TEMP%). Each
 /// scenario drives a real executor - or the full Maker -&gt; Checker -&gt; BuildOracle -&gt; Reporter
-/// graph - with controlled inputs and asserts the expected output. Run with `dotnet run -- factory-verify`.
+/// graph - with controlled inputs and asserts the expected output.
 ///
-/// Exit code = number of failed scenarios (0 = all green), so it can gate a hook or CI step.
+/// This is its own project (Tests/FactoryLoopHarness). Exit code = number of failed scenarios
+/// (0 = all green), so it can gate CI; see CONTRIBUTING.md and .github/workflows/ci.yml - the rule
+/// is that any change to AgentFrameworkStarter must keep this green.
 /// </summary>
 internal static class FactoryLoopHarness
 {
@@ -77,7 +79,6 @@ internal static class FactoryLoopHarness
 				Assert(fixedBuild.ExitCode == 0, "exit code after fixing", "0", fixedBuild.ExitCode.ToString());
 			});
 
-
 			// 3. Scripted Maker fixes trailing whitespace --------------------------------
 			await ScenarioAsync("ScriptedMaker removes trailing whitespace and reports the change", () =>
 			{
@@ -125,6 +126,7 @@ internal static class FactoryLoopHarness
 				Assert(!bigReview.Approved, "large diff rejected", "false", bigReview.Approved.ToString());
 				AssertContains("larger than a few lines", string.Join(" ", bigReview.Feedback));
 			});
+
 
 			// 6. Full loop: fixable change ends in a passing report -----------------------
 			await ScenarioAsync("Full loop: a fixable change reaches a passing report and memory file", async () =>
@@ -236,8 +238,7 @@ internal static class FactoryLoopHarness
 	private static void AssertContains(string expected, string actual) =>
 		Assert(actual.Contains(expected, StringComparison.OrdinalIgnoreCase), $"contains \"{expected}\"", expected, actual);
 
-
-	private static void PrintSummary(string tempRoot)
+private static void PrintSummary(string tempRoot)
 	{
 		var failed = 0;
 		var total = 0;
@@ -322,4 +323,3 @@ internal static class FactoryLoopHarness
 		public static List<Assertion>? Active { get; set; }
 	}
 }
-

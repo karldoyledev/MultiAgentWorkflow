@@ -1,0 +1,23 @@
+# Build output
+bin/
+obj/
+
+# IDE / editor
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+# Local secrets - never commit real API keys
+*.env
+.env.local
+
+# Stray server/log files that must never land in git status
+*.log
+server_*.txt
+my_server*.txt
+
+# Temp harness artifacts (the harness writes to %TEMP%, but just in case)
+factory-harness-*
+factory-build-*

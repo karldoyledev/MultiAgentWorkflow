@@ -1,0 +1,25 @@
+name: ci
+
+# The rule: every push and pull request to this repository must keep the
+# factory-loop harness green. It drives the real loop machinery against an
+# isolated throwaway project and exits non-zero on any failed scenario.
+on: [push, pull_request]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build the solution
+        run: dotnet build MultiAgentWorkflow.slnx -v minimal
+
+      - name: Run the factory-loop harness (must pass with every change)
+        run: dotnet run --project Tests/FactoryLoopHarness/FactoryLoopHarnessTests.csproj
+
+      - name: Run the credential-free loop smoke test
+        run: dotnet run --project AgentFrameworkStarter/AgentFrameworkStarter.csproj -- loop-demo

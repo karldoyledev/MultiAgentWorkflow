@@ -1,14 +1,21 @@
 # Factory loop harness
 
-Repeatable, credential-free demonstration of the software-factory loop (`FactoryLoopWorkflow.cs`).
-Every scenario drives a real executor — or the full `Maker -> Checker -> BuildOracle -> Reporter`
-graph — against an **isolated throwaway project** (a single-file console app created under `%TEMP%`
-and deleted afterwards), so nothing in this repository is ever modified by the run.
+Repeatable, credential-free demonstration of the software-factory loop (`FactoryLoopWorkflow.cs` in
+`AgentFrameworkStarter`). Every scenario drives a real executor — or the full
+`Maker -> Checker -> BuildOracle -> Reporter` graph — against an **isolated throwaway project** (a
+single-file console app created under `%TEMP%` and deleted afterwards), so nothing in this repository
+is ever modified by the run.
+
+This is its **own project** (`Tests/FactoryLoopHarness`), referenced from `AgentFrameworkStarter` via
+`InternalsVisibleTo`. **Rule:** every change to `AgentFrameworkStarter` must keep this green —
+enforced by `.github/workflows/ci.yml` on every push/PR and locally by `verify.ps1` (see `CONTRIBUTING.md`).
 
 ## Run it
 
 ```powershell
-dotnet run -- factory-verify
+dotnet run --project Tests/FactoryLoopHarness
+# or the one-command local gate:
+./verify.ps1
 ```
 
 Output: one block per scenario with `[PASS]/[FAIL]` per assertion plus expected vs actual, then a

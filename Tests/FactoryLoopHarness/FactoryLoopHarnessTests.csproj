@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Must match the InternalsVisibleTo in AgentFrameworkStarter so the harness can
+         exercise the loop's internal executors and records. -->
+    <AssemblyName>FactoryLoopHarnessTests</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\AgentFrameworkStarter\AgentFrameworkStarter.csproj" />
+  </ItemGroup>
+
+</Project>
