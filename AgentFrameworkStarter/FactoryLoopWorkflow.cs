@@ -130,7 +130,7 @@ internal static class FactoryLoopWorkflow
 			new FactorySelectorExecutor(),
 			new ToolCallingMakerExecutor(client.GetChatClient(model), projectRoot),
 			new FactoryCheckerExecutor(CreateCheckerAgent(client, model)),
-			new FactoryBuildOracleValidator(),
+			new FactoryBuildOracleValidator(projectRoot),
 			new FactoryReporterExecutor(request.StateFilePath),
 			request);
 	}
@@ -156,9 +156,9 @@ internal static class FactoryLoopWorkflow
 
 			await RunGraphAsync(
 				new FactorySelectorExecutor(),
-				new ScriptedCleanerMakerExecutor(),
+				new ScriptedCleanerMakerExecutor(projectRoot),
 				new ScriptedApproverChecker(),
-				new FactoryBuildOracleValidator(),
+				new FactoryBuildOracleValidator(projectRoot),
 				new FactoryReporterExecutor(stateFile),
 				request);
 		}
@@ -178,7 +178,7 @@ internal static class FactoryLoopWorkflow
 	}
 }
 
-private static async Task RunGraphAsync(
+internal static async Task<string> RunGraphAsync(
 		FactorySelectorExecutor selector,
 		Executor<FactoryStep, FactoryOutput> maker,
 		Executor<FactoryOutput, FactoryReview> checker,
@@ -205,6 +205,7 @@ private static async Task RunGraphAsync(
 
 		await using Run run = await InProcessExecution.RunAsync(workflow, request);
 
+		string? finalReport = null;
 		foreach (WorkflowEvent workflowEvent in run.NewEvents)
 		{
 			switch (workflowEvent)
@@ -220,9 +221,12 @@ private static async Task RunGraphAsync(
 				case WorkflowOutputEvent output:
 					Console.WriteLine();
 					Console.WriteLine(output.Data);
+					finalReport = output.Data?.ToString() ?? string.Empty;
 					break;
 			}
 		}
+
+		return finalReport ?? string.Empty;
 	}
 
 	internal static string BuildMakerPrompt(FactoryBrief brief)
@@ -360,7 +364,7 @@ internal sealed class FactorySelectorExecutor() : Executor<FactoryRequest, Facto
 /// repair path the model-backed Maker would take, scripted). Produces no change when there is nothing
 /// to fix, which the oracle then treats as a failed attempt.
 /// </summary>
-internal sealed class ScriptedCleanerMakerExecutor() : Executor<FactoryStep, FactoryOutput>("CleanerMaker")
+internal sealed class ScriptedCleanerMakerExecutor(string? projectRoot = null) : Executor<FactoryStep, FactoryOutput>("CleanerMaker")
 {
 	public override ValueTask<FactoryOutput> HandleAsync(
 		FactoryStep message,
@@ -369,7 +373,8 @@ internal sealed class ScriptedCleanerMakerExecutor() : Executor<FactoryStep, Fac
 	{
 		var brief = message.NextAttempt
 			?? throw new InvalidOperationException("The maker only runs when the graph supplies a next attempt.");
-		var target = FactoryDevTools.ResolvePath(brief.TargetFile ?? string.Empty);
+		var root = projectRoot ?? FactoryDevTools.FindProjectRoot() ?? Environment.CurrentDirectory;
+		var target = FactoryDevTools.ResolvePath(brief.TargetFile ?? string.Empty, root);
 		var before = FactoryDevTools.ReadFile(target);
 		var cleaned = FactoryLoopWorkflow.RemoveTrailingWhitespace(before);
 
@@ -659,7 +664,7 @@ internal sealed class ToolCallingMakerExecutor(ChatClient chat, string projectRo
 /// build`). A change only passes when the Checker approved AND the build exits 0; anything else
 /// re-enters the Maker up to the retry cap, then exits with the unresolved report.
 /// </summary>
-internal sealed class FactoryBuildOracleValidator() : Executor<FactoryReview, FactoryStep>("BuildOracle")
+internal sealed class FactoryBuildOracleValidator(string? projectRoot = null) : Executor<FactoryReview, FactoryStep>("BuildOracle")
 {
 	public override async ValueTask<FactoryStep> HandleAsync(
 		FactoryReview review,
@@ -684,7 +689,7 @@ internal sealed class FactoryBuildOracleValidator() : Executor<FactoryReview, Fa
 		if (failures.Count == 0)
 		{
 			// Only spend a build once the Checker approved; the build is the hard-to-fake oracle.
-			build = await FactoryDevTools.RunDotNetBuildOracleAsync();
+			build = await FactoryDevTools.RunDotNetBuildOracleAsync(projectRoot);
 			if (build.ExitCode != 0)
 			{
 				failures.Add("The project does not build after the change:\n"

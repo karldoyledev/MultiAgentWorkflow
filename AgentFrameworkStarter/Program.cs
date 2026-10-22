@@ -23,6 +23,14 @@ if (args.Length > 0 && args[0].Equals("dev-loop-demo", StringComparison.OrdinalI
 	return;
 }
 
+// Repeatable, credential-free test harness: drives the factory loop's scenarios against an isolated
+// throwaway project and asserts the expected outputs. Exit code 0 = all green.
+if (args.Length > 0 && args[0].Equals("factory-verify", StringComparison.OrdinalIgnoreCase))
+{
+	Environment.ExitCode = await FactoryLoopHarness.RunAsync();
+	return;
+}
+
 // The dark-themed web UI is the default: run `dotnet run` (no args) or `dotnet run -- ui`.
 if (args.Length == 0 || IsUiAlias(args[0]))
 {
