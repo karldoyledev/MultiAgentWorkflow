@@ -1,0 +1,31 @@
+@* The Demo/Live switch must live in its own interactive component. Event handlers (@onclick)
+	only fire inside components with an interactive render mode; the layout itself renders as
+	static SSR and cannot be made InteractiveServer because its @Body RenderFragment can't cross
+	the interactive boundary. This component shares the scoped WorkflowUiState with the page,
+	so toggling it re-renders both the switch here and the inputs on the page. *@
+@rendermode InteractiveServer
+@inject WorkflowUiState UiState
+@implements IDisposable
+
+<div class="mode-switch" role="group" aria-label="Run mode">
+	<span class="mode-label @(UiState.IsLive ? string.Empty : "active")">Demo</span>
+	<button type="button"
+			class="switch @(UiState.IsLive ? "live" : "demo")"
+			role="switch"
+			aria-checked="@(UiState.IsLive ? "true" : "false")"
+			@onclick="ToggleMode"
+			title="Switch between the credential-free demo and the full model workflow">
+		<span class="knob"></span>
+	</button>
+	<span class="mode-label @(UiState.IsLive ? "active" : string.Empty)">Live</span>
+</div>
+
+@code {
+	protected override void OnInitialized() => UiState.Changed += OnModeChanged;
+
+	private void OnModeChanged() => InvokeAsync(StateHasChanged);
+
+	private void ToggleMode() => UiState.SetLive(!UiState.IsLive);
+
+	public void Dispose() => UiState.Changed -= OnModeChanged;
+}
